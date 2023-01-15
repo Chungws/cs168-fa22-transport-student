@@ -542,7 +542,10 @@ class StudentUSocket(StudentUSocketBase):
     self.bind(dev.ip_addr, 0)
 
     ## Start of Stage 1 ##
-
+    p = self.new_packet(ack=False, syn=True)
+    p.tcp.seq = self.snd.iss
+    self.tx(p=p)
+    self.state = SYN_SENT
     ## End of Stage 1 ##
 
   def tx(self, p, retxed=False):
@@ -589,7 +592,8 @@ class StudentUSocket(StudentUSocketBase):
     if self.state is CLOSED:
       return
     ## Start of Stage 1 ##
-
+    elif self.state is SYN_SENT:
+      self.handle_synsent(seg)
     ## End of Stage 1 ##
     elif self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2,
                         CLOSE_WAIT, CLOSING, LAST_ACK, TIME_WAIT):
@@ -644,10 +648,11 @@ class StudentUSocket(StudentUSocketBase):
 
     if acceptable_ack:
       ## Start of Stage 1 ##
-
+      self.rcv.nxt = seg.seq |PLUS| 1
+      self.snd.una = seg.ack
       if self.snd.una |GT| self.snd.iss:
-        pass
-
+        self.state = ESTABLISHED
+        self.set_pending_ack()
       ## End of Stage 1 ##
 
   def update_rto(self, acked_pkt):
