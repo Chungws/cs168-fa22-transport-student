@@ -621,7 +621,8 @@ class StudentUSocket(StudentUSocketBase):
         break
       else:
         _, packet = self.rx_queue.pop()
-        self.handle_accepted_seg(packet.tcp, packet.app)
+        app = packet.app[self.rcv.nxt |MINUS| packet.tcp.seq:]
+        self.handle_accepted_seg(packet.tcp, app)
 
     ## End of Stage 3 ##
 
