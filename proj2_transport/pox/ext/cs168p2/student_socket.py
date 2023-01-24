@@ -663,6 +663,7 @@ class StudentUSocket(StudentUSocketBase):
       if self.snd.una |GT| self.snd.iss:
         self.state = ESTABLISHED
         self.set_pending_ack()
+      self.update_window(seg)
       ## End of Stage 1 ##
 
   def update_rto(self, acked_pkt):
