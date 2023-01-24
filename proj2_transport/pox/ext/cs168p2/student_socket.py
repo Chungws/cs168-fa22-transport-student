@@ -709,7 +709,7 @@ class StudentUSocket(StudentUSocketBase):
     """
 
     ## Start of Stage 5 ##
-    self.snd.wnd = self.TX_DATA_MAX # remove when implemented
+    self.snd.wnd = seg.win # remove when implemented
     self.snd.wl1 = seg.seq
     self.snd.wl2 = seg.ack
 
@@ -853,7 +853,7 @@ class StudentUSocket(StudentUSocketBase):
 
     ## Start of Stage 4 ##
     remaining = len(self.tx_data)
-    while remaining > 0:
+    while remaining > 0 and snd.wnd > 0:
       max_size = min(self.mss, snd.wnd)
       payload = self.tx_data[:min(remaining, max_size)]
       num_pkts += 1
