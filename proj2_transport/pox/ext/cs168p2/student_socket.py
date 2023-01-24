@@ -478,9 +478,8 @@ class StudentUSocket(StudentUSocketBase):
       self._delete_tcb()
     elif self.state is ESTABLISHED:
       ## Start of Stage 7 ##
-
+      self.fin_ctrl.set_pending(FIN_WAIT_1)
       ## End of Stage 7 ##
-      pass
     elif self.state in (FIN_WAIT_1,FIN_WAIT_2):
       raise RuntimeError("close() is invalid in FIN_WAIT states")
     elif self.state is CLOSE_WAIT:
@@ -761,7 +760,13 @@ class StudentUSocket(StudentUSocketBase):
 
 
     ## Start of Stage 7 ##
-
+    if self.state == FIN_WAIT_1:
+      if self.fin_ctrl.acks_our_fin(seg.ack):
+        self.start_timer_timewait()
+      else:
+        self.state = CLOSING
+    elif self.state == FIN_WAIT_2:
+        self.start_timer_timewait()
     ## End of Stage 7 ##
 
   def check_ack(self, seg):
@@ -795,14 +800,16 @@ class StudentUSocket(StudentUSocketBase):
     ## Start of Stage 6 ##
     ## Start of Stage 7 ##
     if self.state == FIN_WAIT_1:
-      pass
+      if self.fin_ctrl.acks_our_fin(seg.ack):
+        self.state = FIN_WAIT_2
     elif self.state == FIN_WAIT_2:
       if self.retx_queue.empty():
         self.set_pending_ack()
     elif self.state == CLOSING:
-      pass
+      if self.fin_ctrl.acks_our_fin(seg.ack):
+        self.start_timer_timewait()
     elif self.state == LAST_ACK:
-      if seg.ACK:
+      if self.fin_ctrl.acks_our_fin(seg.ack):
         self._delete_tcb()
     elif self.state == TIME_WAIT:
       # restart the 2 msl timeout
