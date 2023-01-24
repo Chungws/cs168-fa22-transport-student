@@ -564,7 +564,7 @@ class StudentUSocket(StudentUSocketBase):
     if (p.tcp.SYN or p.tcp.FIN or p.tcp.payload) and not retxed:
 
       ## Start of Stage 4 ##
-
+      self.snd.nxt = self.snd.nxt |PLUS| len(p.tcp.payload)
       ## End of Stage 4 ##
       pass
 
@@ -723,7 +723,7 @@ class StudentUSocket(StudentUSocketBase):
     acceptable_seg()
     """
     ## Start of Stage 4 ##
-
+    self.snd.una = seg.ack
     ## End of Stage 4    ##
 
 
@@ -776,7 +776,14 @@ class StudentUSocket(StudentUSocketBase):
     # fifth, check ACK field
     if self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, CLOSING):
       ## Start of Stage 4 ##
-
+      if snd.una |LE| seg.ack and seg.ack |LE| snd.nxt:
+        self.handle_accepted_ack(seg)
+      elif seg.ack |LT| snd.una:
+        continue_after_ack = False
+      elif seg.ack |GT| snd.nxt:
+        self.set_pending_ack()
+        continue_after_ack = False
+        return continue_after_ack
       ## End of Stage 4 ##
 
       if snd.una |LE| seg.ack and seg.ack |LE| snd.nxt:
@@ -845,11 +852,18 @@ class StudentUSocket(StudentUSocketBase):
     bytes_sent = 0
 
     ## Start of Stage 4 ##
-    remaining = 0
+    remaining = len(self.tx_data)
     while remaining > 0:
-
+      max_size = min(self.mss, snd.wnd)
+      payload = self.tx_data[:min(remaining, max_size)]
       num_pkts += 1
       bytes_sent += len(payload)
+      self.tx_data = self.tx_data[len(payload):]
+      remaining = len(self.tx_data)
+      p = self.new_packet(data=payload)
+      self.tx(p)
+      if bytes_sent |GT| snd.wnd:
+        break
 
     self.log.debug("sent {0} packets with {1} bytes total".format(num_pkts, bytes_sent))
     ## End of Stage 4 ##
