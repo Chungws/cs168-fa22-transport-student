@@ -612,9 +612,7 @@ class StudentUSocket(StudentUSocketBase):
     ## Start of Stage 3 ##
     # checking recv queue
     # Hint: data = packet.app[self.rcv.nxt |MINUS| packet.tcp.seq:]
-    while True:
-      if self.rx_queue.empty():
-        break
+    while not self.rx_queue.empty():
       smallest_seq_no, _ = self.rx_queue.peek()
       if smallest_seq_no |GT| self.rcv.nxt:
         self.set_pending_ack()
@@ -853,7 +851,7 @@ class StudentUSocket(StudentUSocketBase):
       return
 
     ## Start of Stage 2 ##
-    if self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2) and len(payload) is not 0:
+    if self.state in (ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2) and len(payload) > 0:
       self.handle_accepted_payload(payload)
     ## End of Stage 2 ##
 
@@ -875,7 +873,6 @@ class StudentUSocket(StudentUSocketBase):
 
     ## Start of Stage 4 ##
     remaining = min(len(self.tx_data), snd.wnd |MINUS| (snd.nxt |MINUS| snd.una))
-    self.log.debug("remaining : {0}, first : {1}, second : {2}".format(remaining, len(self.tx_data), snd.wnd |MINUS| (snd.nxt |MINUS| snd.una)))
     while remaining > 0:
       max_size = min(self.mss, remaining)
       payload = self.tx_data[:max_size]
