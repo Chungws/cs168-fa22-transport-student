@@ -560,6 +560,8 @@ class StudentUSocket(StudentUSocketBase):
 
 
     if (p.tcp.SYN or p.tcp.FIN or p.tcp.payload) and not retxed:
+      p.tx_ts = self.stack.now
+      self.retx_queue.push(p)
 
       ## Start of Stage 4 ##
       self.snd.nxt = self.snd.nxt |PLUS| len(p.tcp.payload)
@@ -726,7 +728,7 @@ class StudentUSocket(StudentUSocketBase):
 
 
     ## Start of Stage 8 ##
-
+    self.retx_queue.pop_upto(seg.ack)
     ## End of Stage 8 ##
 
 
@@ -862,18 +864,17 @@ class StudentUSocket(StudentUSocketBase):
     bytes_sent = 0
 
     ## Start of Stage 4 ##
-    remaining = len(self.tx_data)
-    while remaining > 0 and snd.wnd > 0:
-      max_size = min(self.mss, snd.wnd)
-      payload = self.tx_data[:min(remaining, max_size)]
+    remaining = min(len(self.tx_data), snd.wnd |MINUS| (snd.nxt |MINUS| snd.una))
+    self.log.debug("remaining : {0}, first : {1}, second : {2}".format(remaining, len(self.tx_data), snd.wnd |MINUS| (snd.nxt |MINUS| snd.una)))
+    while remaining > 0:
+      max_size = min(self.mss, remaining)
+      payload = self.tx_data[:max_size]
       num_pkts += 1
       bytes_sent += len(payload)
       self.tx_data = self.tx_data[len(payload):]
-      remaining = len(self.tx_data)
+      remaining -= len(payload)
       p = self.new_packet(data=payload)
       self.tx(p)
-      if bytes_sent |GT| snd.wnd:
-        break
 
     self.log.debug("sent {0} packets with {1} bytes total".format(num_pkts, bytes_sent))
     ## End of Stage 4 ##
@@ -900,8 +901,10 @@ class StudentUSocket(StudentUSocketBase):
     """
 
     ## Start of Stage 8 ##
-    time_in_queue = 0 # modify when implemented
-
+    time_in_queue = 0
+    if not self.retx_queue.empty():
+      _, p = self.retx_queue.get_earliest_pkt()
+      time_in_queue = self.stack.now - p.tx_ts # modify when implemented
     ## End of Stage 8 ##
 
     if time_in_queue > self.rto:
