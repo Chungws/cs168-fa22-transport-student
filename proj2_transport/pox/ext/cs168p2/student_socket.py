@@ -674,7 +674,17 @@ class StudentUSocket(StudentUSocketBase):
     """
 
     ## Start of Stage 9 ##
+    R = self.stack.now - acked_pkt.tx_ts
 
+    if self.srtt == 0:
+      self.srtt = R
+      self.rttvar = R/2
+    else:
+      self.rttvar = (1-self.beta) * self.rttvar + self.beta * abs(self.srtt - R)
+      self.srtt = (1-self.alpha) * self.srtt + self.alpha * R
+
+    new_rto = self.srtt + max(self.G, self.K * self.rttvar)
+    self.rto = min(self.MAX_RTO, max(self.MIN_RTO, new_rto))
     ## End of Stage 9 ##
 
     pass
@@ -728,13 +738,13 @@ class StudentUSocket(StudentUSocketBase):
 
 
     ## Start of Stage 8 ##
-    self.retx_queue.pop_upto(seg.ack)
+    acked_pkts = self.retx_queue.pop_upto(seg.ack)
     ## End of Stage 8 ##
 
 
     ## Start of Stage 9 ##
 
-    acked_pkts = [] # remove when implemented
+    # acked_pkts = [] # remove when implemented
     for (ackno, p) in acked_pkts:
       if not p.retxed:
         self.update_rto(p)
@@ -912,7 +922,7 @@ class StudentUSocket(StudentUSocketBase):
       self.tx(p, retxed=True)
 
       ## Start of Stage 9 ##
-
+      self.rto = min(self.rto * 2, self.MAX_RTO)
       ## End of Stage 9 ##
 
   def set_pending_ack(self):
